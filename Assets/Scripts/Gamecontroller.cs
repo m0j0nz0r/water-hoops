@@ -18,6 +18,5 @@ public class Gamecontroller : MonoBehaviour {
 			ringCount--;
 			Instantiate (ring, new Vector3 (Random.Range (xMin, xMax), Random.Range (yMin, yMax), 0), Random.rotation);
 		}
-	
 	}
 }

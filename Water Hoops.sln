@@ -1,7 +1,7 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2008
-
-Project("{504BBA18-9524-598E-6D8A-02B37C2F1265}") = "Water Hoops", "Assembly-CSharp.csproj", "{27ED646E-38B7-E01D-BEBF-8CFBA5E31113}"
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Water Hoops", "Assembly-CSharp.csproj", "{27ED646E-38B7-E01D-BEBF-8CFBA5E31113}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
