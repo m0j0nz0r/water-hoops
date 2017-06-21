@@ -7,10 +7,8 @@ public class FluidSimulator : MonoBehaviour {
 	public int gridSizeZ;
 	public float cellSize;
 	public int linearSolverTimes = 20;
-	public float diff = 0f;
-	public float viscosity = 0f;
-	public float force = 10f;
-	public float source = 200f;
+	public float diff;
+	public float viscosity;
 
 	private float[,,] u;
 	private float[,,] v;
@@ -21,12 +19,13 @@ public class FluidSimulator : MonoBehaviour {
 	private float[,,] density;
 	private float[,,] densityPrev;
 	private int maxSize;
+	public Vector3 relativeOrigin;
 
 	void addSource( float[,,] x, float[,,] s, float dt){
-		int i, j, k;
-		for (i = 0; i <	 gridSizeX; i++) {
-			for (j = 0; j < gridSizeY; j++) {
-				for (k = 0; k < gridSizeZ; k++) {
+		int i, j, k, iMax = gridSizeX + 2, jMax = gridSizeY + 2, kMax = gridSizeZ + 2;
+		for (i = 0; i <	 iMax; i++) {
+			for (j = 0; j < jMax; j++) {
+				for (k = 0; k < kMax; k++) {
 					x [i, j, k] += dt * s [i, j, k];
 				}
 			}
@@ -34,8 +33,6 @@ public class FluidSimulator : MonoBehaviour {
 	}
 
 	void diffuse(int b, float[,,] x, float[,,] x0, float diff, float dt){
-		int n, i, j, k;
-
 		float a = dt * diff * maxSize * maxSize * maxSize;
 		linearSolve (b, x, x0, a, (1 + 6 * a));
 	}
@@ -88,16 +85,16 @@ public class FluidSimulator : MonoBehaviour {
 		x [gridSizeX + 1, gridSizeY + 1, 0] = (
 			x [gridSizeX + 1, gridSizeY + 1, 0] + 
 			x [gridSizeX + 1, gridSizeY + 1, 1] + 
-			x [gridSizeX + 1, gridSizeZ, 0]
+			x [gridSizeX + 1, gridSizeY, 0]
 		) / 3;
 
-		x [gridSizeX + 1, 0, gridSizeY + 1] = (
+		x [gridSizeX + 1, 0, gridSizeZ + 1] = (
 			x [gridSizeX, 0, gridSizeZ + 1] + 
 			x [gridSizeX + 1, 1, gridSizeZ + 1] + 
 			x [gridSizeX + 1, 0, gridSizeZ]
 		) / 3;
 
-		x [0, gridSizeY + 1, gridSizeX + 1] = (
+		x [0, gridSizeY + 1, gridSizeZ + 1] = (
 			x [1, gridSizeY + 1, gridSizeZ + 1] + 
 			x [0, gridSizeY, gridSizeZ + 1] + 
 			x [0, gridSizeY + 1, gridSizeZ]
@@ -164,7 +161,9 @@ public class FluidSimulator : MonoBehaviour {
 
 	void densityStep(float[,,] x, float[,,] x0, float[,,]u, float[,,] v, float[,,] w, float diff, float dt){
 		addSource (x, x0, dt);
-		diffuse (0, x0, x, diff, dt);
+		Swap<float[,,]> (x, x0);
+		diffuse (0, x, x0, diff, dt);
+		Swap<float[,,]> (x, x0);
 		advect (0, x, x0, u, v, w, dt);
 	}
 
@@ -172,10 +171,16 @@ public class FluidSimulator : MonoBehaviour {
 		addSource (u, u0, dt);
 		addSource (v, v0, dt);
 		addSource (w, w0, dt);
-		diffuse (1, u0, u, viscosity, dt);
-		diffuse (2, v0, v, viscosity, dt);
-		diffuse (3, w0, w, viscosity, dt);
-		project (u0, v0, w0, u, v, w);
+		Swap<float[,,]> (u, u0);
+		Swap<float[,,]> (v, v0);
+		Swap<float[,,]> (w, w0);
+		diffuse (1, u, u0, viscosity, dt);
+		diffuse (2, v, v0, viscosity, dt);
+		diffuse (3, w, w0, viscosity, dt);
+		project (u, v, w, u0, v0);
+		Swap<float[,,]> (u, u0);
+		Swap<float[,,]> (v, v0);
+		Swap<float[,,]> (w, w0);
 		advect (1, u, u0, u0, v0, w0, dt);
 		advect (2, v, v0, u0, v0, w0, dt);
 		advect (3, w, w0, u0, v0, w0, dt);
@@ -183,9 +188,7 @@ public class FluidSimulator : MonoBehaviour {
 	}
 
 	void project(float[,,] u, float[,,] v, float[,,] w, float[,,] p, float[,,] div){
-		int n, i, j, k;
-
-
+		int i, j, k;
 		for (i = 1; i <= gridSizeX; i++) {
 			for (j = 1; j <= gridSizeY; j++) {
 				for (k = 1; k <= gridSizeZ; k++) {
@@ -219,7 +222,7 @@ public class FluidSimulator : MonoBehaviour {
 	}
 	void linearSolve(int b, float[,,] x, float[,,] x0, float a, float c){
 		int n, i, j, k;
-		for (n = 0; n < 20; n++) {
+		for (n = 0; n < linearSolverTimes; n++) {
 			for (i = 1; i <= gridSizeX; i++) {
 				for (j = 1; j <= gridSizeY; j++) {
 					for (k = 1; k <= gridSizeZ; k++) {
@@ -238,24 +241,24 @@ public class FluidSimulator : MonoBehaviour {
 		}
 	}
 	void Start(){
-		u = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		v = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		w = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		uPrev = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		vPrev = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		wPrev = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		density = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
-		densityPrev = new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
+		u = getNewGrid ();
+		v = getNewGrid ();
+		w = getNewGrid ();
+		uPrev = getNewGrid ();
+		vPrev = getNewGrid ();
+		wPrev = getNewGrid ();
+		density = getNewGrid ();
+		densityPrev = getNewGrid ();
 		maxSize = Mathf.Max (gridSizeX, Mathf.Max (gridSizeY, gridSizeZ));
-
-		InitGrid (u, 0);
-		InitGrid (v, 0);
-		InitGrid (w, 0);
-		InitGrid (uPrev, 0);
-		InitGrid (vPrev, 0);
-		InitGrid (wPrev, 0);
-		InitGrid (density, 1);
-		InitGrid (densityPrev, 1);
+		relativeOrigin = transform.position - new Vector3 ((gridSizeX+2) * cellSize / 2, (gridSizeY+2) * cellSize / 2, (gridSizeZ+2) * cellSize / 2);
+		InitGrid (u, 0f);
+		InitGrid (v, 0f);
+		InitGrid (w, 0f);
+		InitGrid (uPrev, 0f);
+		InitGrid (vPrev, 0f);
+		InitGrid (wPrev, 0f);
+		InitGrid (density, 1f);
+		InitGrid (densityPrev, 1f);
 	}
 	void InitGrid (float[,,] grid, float value){
 		int i, j, k;
@@ -267,10 +270,59 @@ public class FluidSimulator : MonoBehaviour {
 			}
 		}
 	}
-	void Update(){
-		//to change force, change u,v,w to modify material change density
+	float[,,] getNewGrid(){
+		return new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
+	}
+	public void addForce(Vector3 position, Vector3 force){
+		Vector3 relativePosition = position - relativeOrigin;
+		int x = Mathf.Clamp (Mathf.RoundToInt (relativePosition.x), 0, gridSizeX+1),
+		y = Mathf.Clamp (Mathf.RoundToInt (relativePosition.y), 0, gridSizeY+1), 
+		z = Mathf.Clamp (Mathf.RoundToInt (relativePosition.z), 0, gridSizeZ+1);
+		u [x, y, z] = force.x;
+		v [x, y, z] = force.y;
+		w [x, y, z] = force.z;
+	}
+	public Vector3 getForce(Vector3 position){
+		Vector3 relativePosition = position - relativeOrigin;
+		int x = Mathf.Clamp (Mathf.RoundToInt (relativePosition.x), 0, gridSizeX+1), 
+		y = Mathf.Clamp (Mathf.RoundToInt (relativePosition.y), 0, gridSizeY+1), 
+		z = Mathf.Clamp (Mathf.RoundToInt (relativePosition.z), 0, gridSizeZ+1);
 
+		return new Vector3 (u [x, y, z], v [x, y, z], w [x, y, z]);
+	}
+	void Swap<T>(T a, T b){
+		T tmp = a;
+		a = b;
+		b = tmp;
+	}
+	void Update(){
 		velocityStep (u, v, w, uPrev, vPrev, wPrev, viscosity, Time.deltaTime);
 		densityStep (density, densityPrev, u, v, w, diff, Time.deltaTime);
+	}
+	void OnDrawGizmos(){
+		int i, j, k;
+		Vector3 source;
+		for (i = 0; i<gridSizeX+2;i++){
+			for (j = 0; j<gridSizeY+2;j++){
+				for (k = 0; k<gridSizeZ+2;k++){
+					source = new Vector3 (i * cellSize, j * cellSize, k * cellSize) + relativeOrigin;
+					if (u != null && v != null && w != null) {
+						Gizmos.color = Color.blue;
+						Gizmos.DrawLine(source, source + new Vector3(u[i,j,k], v[i,j,k], w[i,j,k]).normalized);
+					}
+				}
+			}
+		}
+	}
+	void Check(float[,,] x){
+		int count = 0;
+		float sum = 0f;
+		foreach (float f in x) {
+			if (f > 0) {
+				sum += f;
+				count++;
+			}
+		}
+		Debug.Log (string.Format("Count: {0}\nSum: {1}", count, sum));
 	}
 }
