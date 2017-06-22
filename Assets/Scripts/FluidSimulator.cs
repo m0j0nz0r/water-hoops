@@ -33,7 +33,7 @@ public class FluidSimulator : MonoBehaviour {
 	}
 
 	void diffuse(int b, float[,,] x, float[,,] x0, float diff, float dt){
-		float a = dt * diff * maxSize * maxSize * maxSize;
+		float a = dt * diff * gridSizeX * gridSizeY * gridSizeZ;
 		linearSolve (b, x, x0, a, (1 + 6 * a));
 	}
 
@@ -62,7 +62,11 @@ public class FluidSimulator : MonoBehaviour {
 			}
 		}
 
-		x [0, 0, 0] = (x [1, 0, 0] + x [0, 1, 0] + x [0, 0, 1]) / 3;
+		x [0, 0, 0] = (
+			x [1, 0, 0] + 
+			x [0, 1, 0] + 
+			x [0, 0, 1]
+		) / 3;
 
 		x [0, 0, gridSizeZ + 1] = (
 			x [1, 0, gridSizeZ + 1] + 
@@ -108,22 +112,25 @@ public class FluidSimulator : MonoBehaviour {
 	}
 
 	void advect( int b, float[,,] d, float[,,] d0, float[,,] u, float[,,] v, float[,,] w, float dt){
-		int i, j, k, i0, j0, k0, i1, j1, k1;
-		float x, y, z, r0, s0, t0, r1, s1, t1, dt0 = dt*maxSize;
+		int i = gridSizeX + 1, j = gridSizeY + 1, k = gridSizeZ + 1, i0, j0, k0, i1, j1, k1;
+		float x, y, z, r0, s0, t0, r1, s1, t1, tmp;
 
-		for (i = 1; i <= gridSizeX; i++) {
-			for (j = 1; j <= gridSizeY; j++) {
-				for (k = 1; k <= gridSizeZ; k++) {
-					x = Mathf.Clamp(i - dt0*u [i, j, k], 0.5f, gridSizeX + 0.5f);
-					y = Mathf.Clamp(j - dt0*v [i, j, k], 0.5f, gridSizeX + 0.5f);
-					z = Mathf.Clamp(k - dt0*w [i, j, k], 0.5f, gridSizeX + 0.5f);
+		while (i-->1) {
+			while (j-->1) {
+				while (k-->1) {
 
+					//newPos = oldPos - time*velocity
+					x = Mathf.Clamp(i - dt*u [i, j, k], 0, gridSizeX + 1);
+					y = Mathf.Clamp(j - dt*v [i, j, k], 0, gridSizeY + 1);
+					z = Mathf.Clamp(k - dt*w [i, j, k], 0, gridSizeZ + 1);
+
+					//each newPos cell value is a result of a proportional addition of each of its forward neighbors.
 					i0 = Mathf.RoundToInt (x);
-					i1 = i0 + 1;
+					i1 = i0 - 1;
 					j0 = Mathf.RoundToInt (y);
-					j1 = j0 + 1;
+					j1 = j0 - 1;
 					k0 = Mathf.RoundToInt (z);
-					k1 = k0 + 1;
+					k1 = k0 - 1;
 
 					s1 = x - i0;
 					s0 = 1 - s1;
@@ -132,30 +139,31 @@ public class FluidSimulator : MonoBehaviour {
 					r1 = z - k0;
 					r0 = 1 - r1;
 
-					d [i, j, k] = 
-						s0 * (
+					d [i, j, k] = s0 * 
+						(
 							t0 * (
-								r0*d0 [i0, j0, k0] + 
-								r1*d0[i0, j0, k1]
+								r0 * d0 [i0, j0, k0] + 
+								r1 * d0 [i0, j0, k1]
 							) + 
 							t1 * (
-								r0*d0 [i0, j1, k0] + 
-								r1*d0[i0, j1, k1]
+								r0 * d0 [i0, j1, k0] + 
+								r1 * d0 [i0, j1, k1]
 							)
 						) + 
 						s1 * (
 							t0 * (
-								r0*d0 [i1, j0, k0] + 
-								r1*d0[i1, j0, k1]
+								r0 * d0 [i1, j0, k0] + 
+								r1 * d0 [i1, j0, k1]
 							) + 
 							t1 * (
-								r0*d0 [i1, j1, k0] + 
-								r1*d0[i1, j1, k1]
+								r0 * d0 [i1, j1, k0] + 
+								r1 * d0 [i1, j1, k1]
 							)
 						);
 				}
 			}
 		}
+
 		setBoundary (b, d);
 	}
 
@@ -177,6 +185,7 @@ public class FluidSimulator : MonoBehaviour {
 		diffuse (1, u, u0, viscosity, dt);
 		diffuse (2, v, v0, viscosity, dt);
 		diffuse (3, w, w0, viscosity, dt);
+
 		project (u, v, w, u0, v0);
 		Swap<float[,,]> (u, u0);
 		Swap<float[,,]> (v, v0);
@@ -185,6 +194,7 @@ public class FluidSimulator : MonoBehaviour {
 		advect (2, v, v0, u0, v0, w0, dt);
 		advect (3, w, w0, u0, v0, w0, dt);
 		project (u, v, w, u0, v0);
+
 	}
 
 	void project(float[,,] u, float[,,] v, float[,,] w, float[,,] p, float[,,] div){
@@ -241,6 +251,9 @@ public class FluidSimulator : MonoBehaviour {
 		}
 	}
 	void Start(){
+		Init ();
+	}
+	void Init(){
 		u = getNewGrid ();
 		v = getNewGrid ();
 		w = getNewGrid ();
@@ -261,10 +274,10 @@ public class FluidSimulator : MonoBehaviour {
 		InitGrid (densityPrev, 1f);
 	}
 	void InitGrid (float[,,] grid, float value){
-		int i, j, k;
-		for (i = 1; i <= gridSizeX; i++) {
-			for (j = 1; j <= gridSizeY; j++) {
-				for (k = 1; k <= gridSizeZ; k++) {
+		int i, j, k, iMax = grid.GetLength(0), jMax = grid.GetLength(1), kMax = grid.GetLength(2);
+		for (i = 0; i < iMax; i++) {
+			for (j = 0; j < jMax; j++) {
+				for (k = 0; k < kMax; k++) {
 					grid [i, j, k] = value;
 				}
 			}
@@ -274,55 +287,71 @@ public class FluidSimulator : MonoBehaviour {
 		return new float[gridSizeX + 2, gridSizeY + 2, gridSizeZ + 2];
 	}
 	public void addForce(Vector3 position, Vector3 force){
-		Vector3 relativePosition = position - relativeOrigin;
-		int x = Mathf.Clamp (Mathf.RoundToInt (relativePosition.x), 0, gridSizeX+1),
-		y = Mathf.Clamp (Mathf.RoundToInt (relativePosition.y), 0, gridSizeY+1), 
-		z = Mathf.Clamp (Mathf.RoundToInt (relativePosition.z), 0, gridSizeZ+1);
-		u [x, y, z] = force.x;
-		v [x, y, z] = force.y;
-		w [x, y, z] = force.z;
+		int x = getCell (relativeOrigin.x, position.x, gridSizeX + 1),
+		y = getCell (relativeOrigin.y, position.y, gridSizeY + 1), 
+		z = getCell (relativeOrigin.z, position.z, gridSizeZ + 1);
+		uPrev [x,y,z] = u [x, y, z] = force.x;
+		vPrev [x,y,z] = v [x, y, z] = force.y;
+		wPrev [x,y,z] = w [x, y, z] = force.z;
 	}
 	public Vector3 getForce(Vector3 position){
-		Vector3 relativePosition = position - relativeOrigin;
-		int x = Mathf.Clamp (Mathf.RoundToInt (relativePosition.x), 0, gridSizeX+1), 
-		y = Mathf.Clamp (Mathf.RoundToInt (relativePosition.y), 0, gridSizeY+1), 
-		z = Mathf.Clamp (Mathf.RoundToInt (relativePosition.z), 0, gridSizeZ+1);
+		int x = getCell (relativeOrigin.x, position.x, gridSizeX + 1),
+		y = getCell (relativeOrigin.y, position.y, gridSizeY + 1), 
+		z = getCell (relativeOrigin.z, position.z, gridSizeZ + 1);
 
 		return new Vector3 (u [x, y, z], v [x, y, z], w [x, y, z]);
+	}
+	int getCell(float origin, float position, int max){
+		return Mathf.Clamp(Mathf.RoundToInt ((position - origin)/cellSize), 0, max);
 	}
 	void Swap<T>(T a, T b){
 		T tmp = a;
 		a = b;
 		b = tmp;
 	}
+	private string ch1, ch2;
 	void Update(){
-		velocityStep (u, v, w, uPrev, vPrev, wPrev, viscosity, Time.deltaTime);
+		if (u == null || v == null || w == null) {
+			Init ();
+		}
+		ch1 = Check (v);
+		velocityStep (u, v, w, uPrev, vPrev, wPrev, viscosity, 1);
+		ch2 = Check (v);
 		densityStep (density, densityPrev, u, v, w, diff, Time.deltaTime);
+		//if (ch1.CompareTo(ch2) > 0)
+			FindObjectOfType<UnityEngine.UI.Text> ().text = ch1 + ch2;
 	}
 	void OnDrawGizmos(){
 		int i, j, k;
-		Vector3 source;
+		Vector3 source, dest, vec;
+		Gizmos.color = Color.blue;
 		for (i = 0; i<gridSizeX+2;i++){
 			for (j = 0; j<gridSizeY+2;j++){
 				for (k = 0; k<gridSizeZ+2;k++){
-					source = new Vector3 (i * cellSize, j * cellSize, k * cellSize) + relativeOrigin;
 					if (u != null && v != null && w != null) {
-						Gizmos.color = Color.blue;
-						Gizmos.DrawLine(source, source + new Vector3(u[i,j,k], v[i,j,k], w[i,j,k]).normalized);
+						source = new Vector3 (i * cellSize, j * cellSize, k * cellSize) + relativeOrigin;
+						vec = new Vector3 (u [i, j, k], v [i, j, k], w [i, j, k]);
+						dest = source + vec/200;
+						if (vec.magnitude > 0.1f) {
+							Gizmos.DrawLine(source, dest);
+							//Gizmos.DrawSphere(dest, 0.05f);
+						}
 					}
 				}
 			}
 		}
 	}
-	void Check(float[,,] x){
+	string Check(float[,,] x){
 		int count = 0;
 		float sum = 0f;
-		foreach (float f in x) {
-			if (f > 0) {
-				sum += f;
-				count++;
+		if (x != null) {
+			foreach (float f in x) {
+				if (f > 0) {
+					sum += f;
+					count++;
+				}
 			}
 		}
-		Debug.Log (string.Format("Count: {0}\nSum: {1}", count, sum));
+		return string.Format ("Count: {0}\nSum: {1}\n", count, sum);
 	}
 }
