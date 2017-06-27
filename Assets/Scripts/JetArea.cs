@@ -10,6 +10,11 @@ public class JetArea : MonoBehaviour {
 		simulator = FindObjectOfType<FluidSimulator> ();
 	}
 	void Update(){
-		simulator.addForce (transform.position, Vector3.Lerp(force, force.magnitude*(Random.rotation.eulerAngles.normalized - Vector3.forward/2 - Vector3.right/2), 0.5f));
+		if (Input.GetKey (trigger)) {
+			simulator.addForce (transform.position, Vector3.Lerp(force, force.magnitude*(Random.rotation.eulerAngles.normalized - Vector3.forward/2 - Vector3.right/2), 0.5f));
+		}
+		else{
+			simulator.addForce (transform.position, Vector3.zero);
+		}
 	}
 }
